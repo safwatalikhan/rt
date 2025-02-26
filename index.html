@@ -1,158 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <base target="_top">
-  <style>
-    .record-container {
-      display: flex;
-      align-items: flex-start; /* Aligns items at the start of the flex container */
-      margin-bottom: 20px;
-      width: 800px;
-    }
-    .record-details {
-      flex-grow: 1;
-      margin-right: 10px;
-    }
-    .record-thumbnail {
-      width: 100px; /* Thumbnail width */
-      height: auto; /* Maintain aspect ratio */
-      max-height: 100px; /* Limit thumbnail height */
-      margin-left: 200px; /* Space before thumbnail */
-    }
-    .icon-placeholder {
-      width: 100px; /* Icon width */
-      height: 100px; /* Icon height */
-      background-color: #ccc; /* Placeholder background */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 50px; /* Adjust icon size */
-    }
-    .hidden {
-      display: none;
-    }
-    .pagination {
-      margin-top: 20px;
-      width: 800px;
-    }
-    .page-number {
-      display: inline-block;
-      padding: 5px 10px;
-      cursor: pointer;
-      border: 1px solid #ccc;
-      margin: 0 5px;
-      width: 20px;
-      
-    }
-    .page-number.selected {
-      background-color: #007bff;
-      color: white;
-    }
-  </style>
-  <script>
-    let currentPage = 1;
-    const recordsPerPage = 10;
-    let editIndex = null; // Track the index of the record being edited
-
-    function addRecord() {
-      const title = document.getElementById('title').value;
-      const location = document.getElementById('location').value;
-      const photo = document.getElementById('photo').value;
-
-      google.script.run.withSuccessHandler(updateRecords).addRecord(title, location, photo);
-      document.getElementById('title').value = '';
-      document.getElementById('location').value = '';
-      document.getElementById('photo').value = '';
-    }
-    function cancelEdit() {
-      editIndex = null; // Clear the edit index
-      updateRecords(); // Refresh the records to show the non-editable view
-    }
-    function updateRecords() {
-      google.script.run.withSuccessHandler(displayRecords).getRecords(currentPage);
-    }
-
-    function displayRecords(data) {
-      const recordList = document.getElementById('recordList');
-      recordList.innerHTML = '';
-      data.records.forEach((record, index) => {
-        const rowIndex = (currentPage - 1) * recordsPerPage + index; // Correct row index
-        const imageUrl = record[2] || ''; // Use empty string if no photo URL
-
-        recordList.innerHTML += `
-          <div class="record-container">
-            <div class="record-details">
-            <strong>${rowIndex + 1}</strong>
-              ${editIndex === rowIndex ? `
-                <input type="text" value="${record[0]}" id="edit-title-${rowIndex}" placeholder="Title" required>
-                <input type="url" value="${record[1]}" id="edit-location-${rowIndex}" placeholder="Location (URL)">
-                <input type="url" value="${imageUrl}" id="edit-photo-${rowIndex}" placeholder="Photo (URL)">
-                <button onclick="saveRecord(${rowIndex})">Save</button>
-                <button onclick="cancelEdit()">Cancel</button>
-              ` : `
-                <h3>${record[0]}</h3>
-                <p>${record[1] || ''}</p>
-                <p>${imageUrl || ''}</p>
-                <button onclick="editRecord(${rowIndex})">Edit</button>
-              `}
-            </div>
-            <div class="record-thumbnail">
-              ${imageUrl ? `<img src="${imageUrl}" alt="Photo" style="max-height: 100%; max-width: 100%;">` : `<div class="icon-placeholder">📷</div>`}
-            </div>
-          </div>
-          <hr>
-        `;
-      });
-
-      // Pagination
-      const pagination = document.getElementById('pagination');
-      pagination.innerHTML = '';
-      const totalPages = data.totalPages;
-
-      for (let i = 1; i <= totalPages; i++) {
-        const pageNumberDiv = document.createElement('div');
-        pageNumberDiv.className = 'page-number' + (i === currentPage ? ' selected' : '');
-        pageNumberDiv.innerText = i;
-        pageNumberDiv.onclick = function () {
-          currentPage = i;
-          updateRecords();
-        };
-        pagination.appendChild(pageNumberDiv);
-      }
-    }
-
-    function editRecord(index) {
-      editIndex = index; // Set the index of the record being edited
-      updateRecords(); // Refresh the records to show the editable fields
-    }
-
-    function saveRecord(index) {
-      const title = document.getElementById(`edit-title-${index}`).value;
-      const location = document.getElementById(`edit-location-${index}`).value;
-      const photo = document.getElementById(`edit-photo-${index}`).value;
-
-      
-      google.script.run.withSuccessHandler(() => {
-        editIndex = null; // Clear the edit index
-        updateRecords(); // Refresh the records
-      }).updateRecord(index, title, location, photo); // Update the record in the Google Sheets
-    }
-    
-
-    window.onload = updateRecords;
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RT.TXT</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"></script>
+    <script src="script.js" defer></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>rt.txt</h1>
-  <input type="text" id="title" placeholder="Title" required>
-  <input type="url" id="location" placeholder="Location (URL)">
-  <input type="url" id="photo" placeholder="Photo (URL)">
-  <button onclick="addRecord()">Add Record</button>
-  <hr>
+    <h1>RT.TXT</h1>
+    
+    <div>
+        <button onclick="sortRecords('title')">Sort by Title</button>
+        <button onclick="sortRecords('index')">Sort by Index</button>
+    </div>
 
+    <div id="records-container"></div>
 
-  <div id="recordList"></div>
-  <div class="pagination" id="pagination"></div>
+    <div id="pagination"></div>
 </body>
 </html>
-
