@@ -16,64 +16,114 @@ const firebaseConfig = {
   measurementId: "G-K753NEH3BB"
 };
 
+
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-async function loadRecords() {
-    const recordsContainer = document.getElementById("records");
-    recordsContainer.innerHTML = ""; // Clear existing records
+let recordsPerPage = 10;
+let currentPage = 1;
+let totalRecords = 0;
+let sortField = "index";
+let sortOrder = "asc";
 
-    const snapshot = await db.collection("records").orderBy("index").get();
-    snapshot.forEach((doc) => {
-        const record = doc.data();
-        recordsContainer.innerHTML += `
-            <tr id="record-${record.index}">
-                <td>${record.index}</td>
-                <td><input type="text" class="editable" value="${record.title}" readonly></td>
-                <td><input type="text" class="editable" value="${record.location}" readonly></td>
-                <td><img src="${record.photo || 'default-icon.png'}" class="thumbnail"></td>
-                <td>
-                    <button class="edit-btn" onclick="enableEdit(${record.index})">Edit</button>
-                    <button class="save-btn" style="display:none;" onclick="saveEdit(${record.index})">Save</button>
-                    <button class="cancel-btn" style="display:none;" onclick="cancelEdit(${record.index})">Cancel</button>
-                </td>
-            </tr>`;
+// Load Records
+function loadRecords() {
+    db.collection("recordsrt")
+        .orderBy(sortField, sortOrder === "asc" ? "asc" : "desc")
+        .limit(recordsPerPage)
+        .get()
+        .then((querySnapshot) => {
+            let output = "";
+            let index = (currentPage - 1) * recordsPerPage + 1;
+            querySnapshot.forEach((doc) => {
+                let data = doc.data();
+                output += `
+                    <div class="record">
+                        <span class="index">${index++}</span>
+                        <div class="details">
+                            <h3 contenteditable="false">${data.title}</h3>
+                            <a href="${data.location}" target="_blank" contenteditable="false">${data.location}</a>
+                        </div>
+                        <img src="${data.photo || 'default-icon.png'}" class="thumbnail">
+                        <button onclick="editRecord('${doc.id}', this)">Edit</button>
+                        <button onclick="saveRecord('${doc.id}', this)" style="display: none;">Save</button>
+                        <button onclick="cancelEdit(this)" style="display: none;">Cancel</button>
+                    </div>`;
+            });
+            document.getElementById("records-container").innerHTML = output;
+            setupPagination();
+        })
+        .catch((error) => console.error("Error loading records: ", error));
+}
+
+// Edit Record
+function editRecord(docId, button) {
+    let record = button.closest(".record");
+    record.querySelector("h3").setAttribute("contenteditable", "true");
+    record.querySelector("a").setAttribute("contenteditable", "true");
+    button.style.display = "none";
+    record.querySelector("button[onclick^='saveRecord']").style.display = "inline";
+    record.querySelector("button[onclick^='cancelEdit']").style.display = "inline";
+}
+
+// Save Record
+function saveRecord(docId, button) {
+    let record = button.closest(".record");
+    let updatedTitle = record.querySelector("h3").innerText;
+    let updatedLocation = record.querySelector("a").innerText;
+
+    db.collection("recordsrt").doc(docId).update({
+        title: updatedTitle,
+        location: updatedLocation
+    }).then(() => {
+        record.querySelector("h3").setAttribute("contenteditable", "false");
+        record.querySelector("a").setAttribute("contenteditable", "false");
+        button.style.display = "none";
+        record.querySelector("button[onclick^='cancelEdit']").style.display = "none";
+        record.querySelector("button[onclick^='editRecord']").style.display = "inline";
     });
 }
 
-function enableEdit(index) {
-    const row = document.getElementById(`record-${index}`);
-    const inputs = row.querySelectorAll(".editable");
-
-    inputs.forEach(input => {
-        input.removeAttribute("readonly");
-        input.classList.add("editing");
-    });
-
-    row.querySelector(".save-btn").style.display = "inline-block";
-    row.querySelector(".cancel-btn").style.display = "inline-block";
-    row.querySelector(".edit-btn").style.display = "none";
+// Cancel Edit
+function cancelEdit(button) {
+    let record = button.closest(".record");
+    record.querySelector("h3").setAttribute("contenteditable", "false");
+    record.querySelector("a").setAttribute("contenteditable", "false");
+    button.style.display = "none";
+    record.querySelector("button[onclick^='saveRecord']").style.display = "none";
+    record.querySelector("button[onclick^='editRecord']").style.display = "inline";
+    loadRecords();
 }
 
-async function saveEdit(index) {
-    const row = document.getElementById(`record-${index}`);
-    const inputs = row.querySelectorAll(".editable");
-
-    let updatedData = {
-        title: inputs[0].value,
-        location: inputs[1].value,
-        photo: inputs[2].value
-    };
-
-    await db.collection("records").doc(index.toString()).update(updatedData);
-
-    inputs.forEach(input => {
-        input.setAttribute("readonly", true);
-        input.classList.remove("editing");
-    });
-
-    row.querySelector(".save-btn").style.display = "none";
-    row.querySelector(".cancel-btn").style.display = "none";
-    row.querySelector(".edit-btn").style.display = "inline-block";
+// Sorting
+function sortRecords(field) {
+    if (sortField === field) {
+        sortOrder = sortOrder === "asc" ? "desc" : "asc";
+    } else {
+        sortField = field;
+        sortOrder = "asc";
+    }
+    loadRecords();
 }
+
+// Pagination
+function setupPagination() {
+    db.collection("recordsrt").get().then((querySnapshot) => {
+        totalRecords = querySnapshot.size;
+        let totalPages = Math.ceil(totalRecords / recordsPerPage);
+        let paginationHTML = "";
+        for (let i = 1; i <= totalPages; i++) {
+            paginationHTML += `<button onclick="changePage(${i})" class="${i === currentPage ? 'active' : ''}">${i}</button>`;
+        }
+        document.getElementById("pagination").innerHTML = paginationHTML;
+    });
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadRecords();
+}
+
+// Load records on page load
+window.onload = loadRecords;
